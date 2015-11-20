@@ -60,7 +60,7 @@ subroutine halo_swap(cartcomm, f, halo_left, halo_right, halo_bottom, halo_top, 
         40, &
         halo_bottom, nx, MPI_DOUBLE_PRECISION, bottom_rank, &
         40, &
-       cartcomm, istatus, ierr)
+        cartcomm, istatus, ierr)
 end subroutine
 
 subroutine print_array2d(f, nx, ny)
@@ -112,7 +112,7 @@ program stencil
         do i=1,N
             x(i,j) = (coords(2)*N + i - 1)*dx
             y(i,j) = (coords(1)*N + j - 1)*dx
-            f(i,j) = sin(x(i,j))
+            f(i,j) = sin(x(i,j)) + sin(y(i,j))
         end do
     end do
 
@@ -155,8 +155,19 @@ program stencil
             dfdx(N,i) = (halo_right(1,i) - f(N-1,i))/(2*dx)
         end do
     end if
-    
+
+    do j=2,N-1
+        do i=1,N
+            dfdy(i,j) = (f(i,j+1) - f(i,j-1))/(2*dx)
+        end do
+    end do
+
     call MPI_Barrier(cartcomm, ierr)
+
+    ! Perform halo swaps
+    call halo_swap(cartcomm, f, halo_left, halo_right, halo_bottom, halo_top, &
+             halo_temp_lr, halo_temp_bt, N, N)
+    
     ! bottom
     if (bottom_rank.eq.MPI_PROC_NULL) then
         do i=1,N
@@ -180,10 +191,24 @@ program stencil
     end if
 
     ! compute error
+    error = 0.0
     if (rank.eq.4) then
     do j=1,N
         do i=1,N
             error = error + dabs(dfdx(i,j) - cos(x(i,j)))
+        end do
+    end do
+    end if
+
+    if (rank.eq.4) then
+        write (*,*), error/(N*N)
+    end if
+
+    error = 0.0
+    if (rank.eq.4) then
+    do j=1,N
+        do i=1,N
+            error = error + dabs(dfdy(i,j) - (cos(y(i,j))))
         end do
     end do
     end if
