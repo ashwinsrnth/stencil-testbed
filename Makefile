@@ -1,4 +1,5 @@
+default:
+	mpif90 stencil.f90
 
-
-out:
-	mpif90 stencil.f95
+openmp:
+	mpif90 stencil.f90 -fopenmp
