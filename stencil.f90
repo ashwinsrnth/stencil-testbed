@@ -12,7 +12,7 @@ program stencil
     logical :: periods(2), reorder
     integer(kind=8) :: N, N_global
     real(kind=8) :: dx
-    real(kind=8), allocatable :: x(:,:), y(:,:), f(:,:), dfdx(:,:), dfdy(:,:)
+    real(kind=8), allocatable :: x(:,:), y(:,:), f(:,:), dfdx(:,:)
     real(kind=8), allocatable :: halo_left(:,:), halo_right(:,:), halo_bottom(:,:), halo_top(:,:)
     real(kind=8), allocatable :: halo_temp_lr(:,:), halo_temp_bt(:,:)
     real(kind=8) :: error, global_error
@@ -40,7 +40,6 @@ program stencil
     allocate(x(N,N))
     allocate(y(N,N))
     allocate(dfdx(N,N))
-    allocate(dfdy(N,N))
     allocate(halo_left(4,N))
     allocate(halo_right(4,N))
     allocate(halo_bottom(4,N))
@@ -109,7 +108,6 @@ program stencil
     deallocate(x)
     deallocate(y)
     deallocate(dfdx)
-    deallocate(dfdy)
 
     call MPI_Finalize(ierr)
 end program
