@@ -77,14 +77,15 @@ subroutine print_array2d(f, nx, ny)
 end subroutine
 
 program stencil
+    use omp_lib
     use mpi
     implicit none
 
-    integer :: ierr, rank, nprocs, cartcomm
+    integer :: ierr, rank, nprocs, nthreads, threadID, cartcomm
     integer :: left_rank, right_rank, bottom_rank, top_rank
     integer :: dims(2), coords(2)
     logical :: periods(2), reorder
-    integer :: N, N_global
+    integer(kind=8) :: N, N_global
     real(kind=8) :: dx
     real(kind=8), allocatable :: x(:,:), y(:,:), f(:,:), dfdx(:,:), dfdy(:,:)
     real(kind=8), allocatable :: halo_left(:,:), halo_right(:,:), halo_bottom(:,:), halo_top(:,:)
@@ -95,9 +96,10 @@ program stencil
 
     call MPI_Init(ierr)
     call MPI_Comm_size(MPI_comm_world, nprocs, ierr)
+    
     dims(1) = int(sqrt(real(nprocs)))
     dims(2) = int(sqrt(real(nprocs)))
-    N_global = 8192
+    N_global = 1024
     N = N_global/dims(2)
     periods(1) = .false.
     periods(2) = .false.
@@ -107,6 +109,22 @@ program stencil
     call MPI_Cart_shift(cartcomm, 1, 1, left_rank, right_rank, ierr)
     call MPI_Cart_shift(cartcomm, 0, 1, bottom_rank, top_rank, ierr)
     call MPI_Cart_get(cartcomm, 2, dims, periods, coords, ierr)
+    
+    if (rank.eq.0) then
+        write (*,*), "--------------------------------------------------------"
+        write (*,*), "Number of MPI processes: ", nprocs
+        write (*,*), "Array size per dimension per process: ", N
+    end if
+    
+    if (rank.eq.0) then    
+        !$omp parallel private(threadID)
+        threadID = omp_get_thread_num()
+        nthreads = omp_get_num_threads()
+        if (threadID.eq.0) then
+            write (*,*), "Number of OpenMP threads per process: ", nthreads
+        end if
+        !$omp end parallel
+    end if
 
     allocate(f(N,N))
     allocate(x(N,N))
@@ -133,7 +151,7 @@ program stencil
     call MPI_Barrier(cartcomm, ierr)
     t1 = MPI_Wtime()
     
-    do step=1,50
+    do step=1,5
         ! Calculate derivatives in the interior
         
         !$omp parallel shared(dfdx,f,dx) private(i,j)
@@ -187,7 +205,7 @@ program stencil
     call MPI_Barrier(cartcomm, ierr)
     t1 = MPI_Wtime()
     
-    do step=1,50
+    do step=1,5
 
         !$omp parallel shared(f, dfdy, dx) private(i,j)
         !$omp do
@@ -262,6 +280,7 @@ program stencil
 
     if (rank.eq.0) then
         write (*,*), "err in dfdy: ", global_error/(N_global*N_global)
+        write (*,*), "--------------------------------------------------------"
     end if
 
     deallocate(halo_left)
