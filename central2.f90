@@ -36,7 +36,7 @@ subroutine calcdfdx(cartcomm, nx, ny, f, dx, dfdx, &
     call MPI_Barrier(cartcomm, ierr)
 
     ! Perform halo swaps
-    call halo_swap(cartcomm, nx, ny, f, &
+    call halo_swap(cartcomm, nx, ny, f, 1, &
         halo_left, halo_right, halo_bottom, halo_top, &
         halo_temp_lr, halo_temp_bt)
    
@@ -100,7 +100,7 @@ subroutine calcdfdy(cartcomm, nx, ny, f, dy, dfdy, &
     call MPI_Barrier(cartcomm, ierr)
 
     ! Perform halo swaps
-    call halo_swap(cartcomm, nx, ny, f, &
+    call halo_swap(cartcomm, nx, ny, f, 1, &
         halo_left, halo_right, halo_bottom, halo_top, &
         halo_temp_lr, halo_temp_bt)
     
