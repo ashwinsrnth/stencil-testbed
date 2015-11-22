@@ -2,7 +2,7 @@
 program stencil
     use omp_lib
     use mpi
-    use central2
+    use central8
 
     implicit none
 
@@ -24,7 +24,7 @@ program stencil
     
     dims(1) = int(sqrt(real(nprocs)))
     dims(2) = int(sqrt(real(nprocs)))
-    N_global = 1024
+    N_global = 256
     N = N_global/dims(2)
     periods(1) = .false.
     periods(2) = .false.
@@ -56,20 +56,21 @@ program stencil
     allocate(y(N,N))
     allocate(dfdx(N,N))
     allocate(dfdy(N,N))
-    allocate(halo_left(1,N))
-    allocate(halo_right(1,N))
-    allocate(halo_bottom(N,1))
-    allocate(halo_top(N,1))
-    allocate(halo_temp_lr(1,N))
-    allocate(halo_temp_bt(N,1))
+    allocate(halo_left(4,N))
+    allocate(halo_right(4,N))
+    allocate(halo_bottom(4,N))
+    allocate(halo_top(4,N))
+    allocate(halo_temp_lr(4,N))
+    allocate(halo_temp_bt(4,N))
+    
 
     ! Initialize array
     dx = 1./(N_global-1)
     do j=1,N
         do i=1,N
-            x(i,j) = (coords(2)*N + i - 1)*dx
-            y(i,j) = (coords(1)*N + j - 1)*dx
-            f(i,j) = sin(x(i,j)) + sin(y(i,j))
+            x(i,j) = (coords(2)*N+i-1)*dx
+            y(i,j) = (coords(1)*N+j-1)*dx
+            f(i,j) = dsin(x(i,j))
         end do
     end do
     
@@ -92,47 +93,19 @@ program stencil
     call MPI_Barrier(cartcomm, ierr)
     t1 = MPI_Wtime()
     
-    do step=1,5
-        call calcdfdy(cartcomm, N, N, f, dx, dfdy, &
-        halo_left, halo_right, halo_bottom, halo_top, &
-        halo_temp_lr, halo_temp_bt)
-    end do
-
-    call MPI_Barrier(cartcomm, ierr)
-    t2 = MPI_Wtime()
-
-    if (rank.eq.0) then
-        write (*,*) "Time for dfdy: ", t2-t1
-    end if
-
     ! compute error
     error = 0.0
     do j=1,N
         do i=1,N
-            error = error + dabs(dfdx(i,j) - cos(x(i,j)))
+            error = error + dabs(dfdx(i,j) - dcos(x(i,j)))
         end do
     end do
 
     call MPI_Reduce(error, global_error, 1, MPI_DOUBLE_PRECISION, &
         MPI_SUM, 0, cartcomm)
 
-    if (rank.eq.0) then
-        write (*,*), "err in dfdx: ", global_error/(N_global*N_global)
-    end if
-
-    error = 0.0
-    do j=1,N
-        do i=1,N
-            error = error + dabs(dfdy(i,j) - (cos(y(i,j))))
-        end do
-    end do
-
-    call MPI_Reduce(error, global_error, 1, MPI_DOUBLE_PRECISION, &
-        MPI_SUM, 0, cartcomm)
-
-    if (rank.eq.0) then
+    if (rank.eq.1) then
         write (*,*), "err in dfdy: ", global_error/(N_global*N_global)
-        write (*,*), "--------------------------------------------------------"
     end if
 
     deallocate(halo_left)

@@ -22,8 +22,9 @@ subroutine halo_swap(cartcomm, nx, ny, f, stencil_width, &
     integer(kind=8), intent(in) :: nx, ny
     real(kind=8), intent(in) :: f(nx,ny)
     integer, intent(in) :: stencil_width
-    real(kind=8), intent(inout) :: halo_left(ny,1), halo_right(ny,1), halo_bottom(nx,1), halo_top(nx,1)
-    real(kind=8), intent(inout) :: halo_temp_lr(ny,1), halo_temp_bt(nx,1)
+    real(kind=8), intent(inout) :: halo_left(stencil_width,ny), halo_right(stencil_width,ny), &
+        halo_bottom(stencil_width,nx), halo_top(stencil_width,nx)
+    real(kind=8), intent(inout) :: halo_temp_lr(stencil_width,ny), halo_temp_bt(stencil_width,nx)
     integer :: rank, left_rank, right_rank, bottom_rank, top_rank
     integer :: ierr, istatus(MPI_STATUS_SIZE)
     integer :: i,j
@@ -35,15 +36,15 @@ subroutine halo_swap(cartcomm, nx, ny, f, stencil_width, &
     ! copy from function to halos
     do i=1,ny
         do j=1,stencil_width
-            halo_left(i,j) = f(j,i)
-            halo_temp_lr(i,j) = f(nx-(j-1),i)
+            halo_left(j,i) = f(j,i)
+            halo_temp_lr(j,i) = f(nx-(j-1),i)
         end do
     end do
 
     do i=1,nx
         do j=1,stencil_width
-            halo_bottom(i,j) = f(i,j)
-            halo_temp_bt(i,j) = f(i,ny-(j-1))
+            halo_bottom(j,i) = f(i,j)
+            halo_temp_bt(j,i) = f(i,ny-(j-1))
         end do
     end do
     
