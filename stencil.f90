@@ -1,80 +1,133 @@
-subroutine halo_swap(cartcomm, f, halo_left, halo_right, halo_bottom, halo_top, &
-                halo_temp_lr, halo_temp_bt, nx, ny)
-        ! Swaps the left-right and bottom-top halos
-        ! for all processes
-        !
-        ! Parameters:
-        !   cartcomm:   2-D Cartesian communicator
-        !   f:  2-D array from which the halos take values
-        !   halo_{left, right}: Space for left and right halos [sized (1,N)]
-        !   halo_{bottom, top}: Space for bottom and top halos [sized (N,1)]
-        !   halo_temp_{lr, bt}: Scratch space sized (1,N) and (N,1) respectively
-        !   nx, ny: Size of array f
-    use mpi
-    implicit none
 
-    integer, intent(in) :: cartcomm, nx, ny
-    real(kind=8), intent(inout) :: f(nx,ny), halo_left(ny,1), halo_right(ny,1), halo_bottom(nx,1), halo_top(nx,1)
-    real(kind=8), intent(inout) :: halo_temp_lr(ny,1), halo_temp_bt(nx,1)
-    integer :: rank, left_rank, right_rank, bottom_rank, top_rank
+subroutine calcdfdx(cartcomm, nx, ny, f, dx, dfdx, &
+        halo_left, halo_right, halo_bottom, halo_top, &
+        halo_temp_lr, halo_temp_bt)
+    use mpi
+    use halo
+    implicit none
+    
+    integer, intent(in) :: cartcomm
+    integer(kind=8), intent(in) :: nx, ny
+    real(kind=8), intent(in) :: f(nx,ny), dx
+    real(kind=8), intent(inout) :: dfdx(nx,ny)
+    real(kind=8), intent(inout) :: halo_left(ny,1), &
+        halo_right(ny,1), halo_bottom(nx,1), halo_top(nx,1)
+    real(kind=8), intent(inout) :: halo_temp_lr(ny,1), &
+        halo_temp_bt(nx,1)
+    integer :: left_rank, right_rank
     integer :: ierr, istatus(MPI_STATUS_SIZE)
     integer :: i,j
-
-    call MPI_Comm_rank(cartcomm, rank, ierr)
-    call MPI_Cart_shift(cartcomm, 1, 1, left_rank, right_rank, ierr)
-    call MPI_Cart_shift(cartcomm, 0, 1, bottom_rank, top_rank, ierr)
-
-    ! copy from function to halos
-    do i = 1,ny
-        halo_left(i,1) = f(1,i)
-        halo_temp_lr(i,1) = f(nx,i)
-    end do
-
-    do i = 1,nx
-        halo_bottom(i,1) = f(i,1)
-        halo_temp_bt(i,1) = f(i,ny)
-    end do
     
+
+    call MPI_Cart_shift(cartcomm, 1, 1, left_rank, right_rank, ierr)
+
+    !$omp parallel shared(dfdx,f,dx) private(i,j)
+    !$omp do
+    do j=1,nx
+        do i=2,ny-1
+            dfdx(i,j) = (f(i+1,j) - f(i-1,j))/(2*dx)
+        end do
+    end do
+    !$omp end do
+    !$omp end parallel
+
     call MPI_Barrier(cartcomm, ierr)
 
-    ! swap halos
-    call MPI_Sendrecv(halo_left, ny, MPI_DOUBLE_PRECISION, left_rank, &
-        10, &
-        halo_right, ny, MPI_DOUBLE_PRECISION, right_rank, &
-        10, &
-        cartcomm, istatus, ierr)
+    ! Perform halo swaps
+    call halo_swap(cartcomm, nx, ny, f, &
+        halo_left, halo_right, halo_bottom, halo_top, &
+        halo_temp_lr, halo_temp_bt)
+   
+    ! Handle the boundaries
 
-    call MPI_Sendrecv(halo_temp_lr, ny, MPI_DOUBLE_PRECISION, right_rank, &
-        20, &
-        halo_left, ny, MPI_DOUBLE_PRECISION, left_rank, &
-        20, &
-        cartcomm, istatus, ierr)
-    
-    call MPI_Sendrecv(halo_bottom, nx, MPI_DOUBLE_PRECISION, bottom_rank, &
-        30, &
-        halo_top, nx, MPI_DOUBLE_PRECISION, top_rank, &
-        30, &
-        cartcomm, istatus, ierr)
-    
-    call MPI_Sendrecv(halo_temp_bt, nx, MPI_DOUBLE_PRECISION, top_rank, &
-        40, &
-        halo_bottom, nx, MPI_DOUBLE_PRECISION, bottom_rank, &
-        40, &
-        cartcomm, istatus, ierr)
-end subroutine
-
-subroutine print_array2d(f, nx, ny)
-    implicit none
-    real(kind=8), intent(in) :: f(nx, ny)
-    integer, intent(in) :: nx, ny
-    integer i, j
-    do j=1,ny
-        do i=1,nx
-            write (*,"(f6.2)",advance="no") f(i,j)
+    ! left
+    if (left_rank.eq.MPI_PROC_NULL) then
+        do i=1,ny
+            dfdx(1,i) = (f(2,i) - f(1,i))/dx
         end do
-        write (*,*)
-    end do
+    else
+        do i=1,ny
+            dfdx(1,i) = (f(2,i) - halo_left(i,1))/(2*dx)
+        end do
+    end if
+
+    ! right
+    if (right_rank.eq.MPI_PROC_NULL) then
+        do i=1,ny
+            dfdx(nx,i) = (f(nx,i) - f(nx-1,i))/dx
+        end do
+    else
+        do i=1,ny
+            dfdx(ny,i) = (halo_right(i,1) - f(ny-1,i))/(2*dx)
+        end do
+    end if
 end subroutine
+
+subroutine calcdfdy(cartcomm, nx, ny, f, dy, dfdy, &
+        halo_left, halo_right, halo_bottom, halo_top, &
+        halo_temp_lr, halo_temp_bt)
+    use mpi
+    use halo
+    implicit none
+    
+    integer, intent(in) :: cartcomm
+    integer(kind=8), intent(in) :: nx, ny
+    real(kind=8), intent(in) :: f(nx,ny), dy
+    real(kind=8), intent(inout) :: dfdy(nx,ny)
+    real(kind=8), intent(inout) :: halo_left(ny,1), &
+        halo_right(ny,1), halo_bottom(nx,1), halo_top(nx,1)
+    real(kind=8), intent(inout) :: halo_temp_lr(ny,1), &
+        halo_temp_bt(nx,1)
+    integer :: left_rank, right_rank
+    integer :: ierr, istatus(MPI_STATUS_SIZE)
+    integer :: i,j
+    integer :: bottom_rank, top_rank
+
+    call MPI_Cart_shift(cartcomm, 0, 1, bottom_rank, top_rank, ierr)
+
+    !$omp parallel shared(f, dfdy, dy) private(i,j)
+    !$omp do
+    do j=2,nx-1
+        do i=1,ny
+            dfdy(i,j) = (f(i,j+1) - f(i,j-1))/(2*dy)
+        end do
+    end do
+    !$omp end do
+    !$omp end parallel
+
+    call MPI_Barrier(cartcomm, ierr)
+
+    ! Perform halo swaps
+    call halo_swap(cartcomm, nx, ny, f, &
+        halo_left, halo_right, halo_bottom, halo_top, &
+        halo_temp_lr, halo_temp_bt)
+    
+    ! bottom
+    if (bottom_rank.eq.MPI_PROC_NULL) then
+        do i=1,nx
+            dfdy(i,1) = (f(i,2) - f(i,1))/dy
+        end do
+    else
+        do i=1,nx
+            dfdy(i,1) = (f(i,2) - halo_bottom(i,1))/(2*dy)
+        end do
+    end if
+    
+    ! top
+    if (top_rank.eq.MPI_PROC_NULL) then
+        do i=1,nx
+            dfdy(i,ny) = (f(i,ny) - f(i,ny-1))/dy
+        end do
+    else
+        do i=1,nx
+            dfdy(i,ny) = (halo_top(i,1) - f(i,ny-1))/(2*dy)
+        end do
+    end if
+
+end subroutine
+
+
+
 
 program stencil
     use omp_lib
@@ -152,47 +205,9 @@ program stencil
     t1 = MPI_Wtime()
     
     do step=1,5
-        ! Calculate derivatives in the interior
-        
-        !$omp parallel shared(dfdx,f,dx) private(i,j)
-        !$omp do
-        do j=1,N
-            do i=2,N-1
-                dfdx(i,j) = (f(i+1,j) - f(i-1,j))/(2*dx)
-            end do
-        end do
-        !$omp end do
-        !$omp end parallel
-
-        call MPI_Barrier(cartcomm, ierr)
-
-        ! Perform halo swaps
-        call halo_swap(cartcomm, f, halo_left, halo_right, halo_bottom, halo_top, &
-                 halo_temp_lr, halo_temp_bt, N, N)
-       
-        ! Handle the boundaries
-
-        ! left
-        if (left_rank.eq.MPI_PROC_NULL) then
-            do i=1,N
-                dfdx(1,i) = (f(2,i) - f(1,i))/dx
-            end do
-        else
-            do i=1,N
-                dfdx(1,i) = (f(2,i) - halo_left(i,1))/(2*dx)
-            end do
-        end if
-
-        ! right
-        if (right_rank.eq.MPI_PROC_NULL) then
-            do i=1,N
-                dfdx(N,i) = (f(N,i) - f(N-1,i))/dx
-            end do
-        else
-            do i=1,N
-                dfdx(N,i) = (halo_right(i,1) - f(N-1,i))/(2*dx)
-            end do
-        end if
+        call calcdfdx(cartcomm, N, N, f, dx, dfdx, &
+        halo_left, halo_right, halo_bottom, halo_top, &
+        halo_temp_lr, halo_temp_bt)
     end do
 
     call MPI_Barrier(cartcomm, ierr)
@@ -206,44 +221,9 @@ program stencil
     t1 = MPI_Wtime()
     
     do step=1,5
-
-        !$omp parallel shared(f, dfdy, dx) private(i,j)
-        !$omp do
-        do j=2,N-1
-            do i=1,N
-                dfdy(i,j) = (f(i,j+1) - f(i,j-1))/(2*dx)
-            end do
-        end do
-        !$omp end do
-        !$omp end parallel
-
-        call MPI_Barrier(cartcomm, ierr)
-
-        ! Perform halo swaps
-        call halo_swap(cartcomm, f, halo_left, halo_right, halo_bottom, halo_top, &
-                 halo_temp_lr, halo_temp_bt, N, N)
-        
-        ! bottom
-        if (bottom_rank.eq.MPI_PROC_NULL) then
-            do i=1,N
-                dfdy(i,1) = (f(i,2) - f(i,1))/dx
-            end do
-        else
-            do i=1,N
-                dfdy(i,1) = (f(i,2) - halo_bottom(i,1))/(2*dx)
-            end do
-        end if
-        
-        ! top
-        if (top_rank.eq.MPI_PROC_NULL) then
-            do i=1,N
-                dfdy(i,N) = (f(i,N) - f(i,N-1))/dx
-            end do
-        else
-            do i=1,N
-                dfdy(i,N) = (halo_top(i,1) - f(i,N-1))/(2*dx)
-            end do
-        end if
+        call calcdfdy(cartcomm, N, N, f, dx, dfdy, &
+        halo_left, halo_right, halo_bottom, halo_top, &
+        halo_temp_lr, halo_temp_bt)
     end do
 
     call MPI_Barrier(cartcomm, ierr)
