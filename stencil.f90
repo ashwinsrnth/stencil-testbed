@@ -24,7 +24,7 @@ program stencil
     
     dims(1) = int(sqrt(real(nprocs)))
     dims(2) = int(sqrt(real(nprocs)))
-    N_global = 256
+    N_global = 1024
     N = N_global/dims(2)
     periods(1) = .false.
     periods(2) = .false.
@@ -35,22 +35,7 @@ program stencil
     call MPI_Cart_shift(cartcomm, 0, 1, bottom_rank, top_rank, ierr)
     call MPI_Cart_get(cartcomm, 2, dims, periods, coords, ierr)
     
-    if (rank.eq.0) then
-        write (*,*), "--------------------------------------------------------"
-        write (*,*), "Number of MPI processes: ", nprocs
-        write (*,*), "Array size per dimension per process: ", N
-    end if
     
-    if (rank.eq.0) then    
-        !$omp parallel private(threadID)
-        threadID = omp_get_thread_num()
-        nthreads = omp_get_num_threads()
-        if (threadID.eq.0) then
-            write (*,*), "Number of OpenMP threads per process: ", nthreads
-        end if
-        !$omp end parallel
-    end if
-
     allocate(f(N,N))
     allocate(x(N,N))
     allocate(y(N,N))
@@ -77,7 +62,7 @@ program stencil
     call MPI_Barrier(cartcomm, ierr)
     t1 = MPI_Wtime()
     
-    do step=1,5
+    do step=1,10
         call calcdfdx(cartcomm, N, N, f, dx, dfdx, &
         halo_left, halo_right, halo_bottom, halo_top, &
         halo_temp_lr, halo_temp_bt)
@@ -86,13 +71,6 @@ program stencil
     call MPI_Barrier(cartcomm, ierr)
     t2 = MPI_Wtime()
 
-    if (rank.eq.0) then
-        write (*,*) "Time for dfdx: ", t2-t1
-    end if
-
-    call MPI_Barrier(cartcomm, ierr)
-    t1 = MPI_Wtime()
-    
     ! compute error
     error = 0.0
     do j=1,N
@@ -104,8 +82,21 @@ program stencil
     call MPI_Reduce(error, global_error, 1, MPI_DOUBLE_PRECISION, &
         MPI_SUM, 0, cartcomm)
 
-    if (rank.eq.1) then
-        write (*,*), "err in dfdy: ", global_error/(N_global*N_global)
+    if (rank.eq.0) then
+        print '(A33, I11)', "Problem size per direction: ", N_global
+        print '(A33, F9.4, A2)', "Time for dfdx: ", (t2-t1)/10.0d+00, "s"
+        print '(A33, E11.4)', "Global error: ", (global_error/(N_global*N_global))
+        print '(A33, I11)', "Number of MPI processes: ", nprocs
+    end if
+
+    if (rank.eq.0) then    
+        !$omp parallel private(threadID)
+        threadID = omp_get_thread_num()
+        nthreads = omp_get_num_threads()
+        if (threadID.eq.0) then
+            print '(A33, I11)', "OMP threads per process: ", nthreads
+        end if
+        !$omp end parallel
     end if
 
     deallocate(halo_left)
