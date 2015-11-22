@@ -18,23 +18,25 @@ program stencil
     real(kind=8) :: error, global_error
     integer :: i, j, step
     real(kind=8) :: t1, t2
-
+    character(32) :: N_global_string
+    
     call MPI_Init(ierr)
     call MPI_Comm_size(MPI_comm_world, nprocs, ierr)
+
+    call getarg(1, N_global_string)
+    read(N_global_string, *), N_global
     
     dims(1) = int(sqrt(real(nprocs)))
     dims(2) = int(sqrt(real(nprocs)))
-    N_global = 1024
-    N = N_global/dims(2)
     periods(1) = .false.
     periods(2) = .false.
     reorder = .false.
+    N = N_global/dims(2)
     call MPI_Cart_create(MPI_Comm_world, 2, dims, periods, reorder, cartcomm, ierr)
     call MPI_Comm_rank(cartcomm, rank, ierr)
     call MPI_Cart_shift(cartcomm, 1, 1, left_rank, right_rank, ierr)
     call MPI_Cart_shift(cartcomm, 0, 1, bottom_rank, top_rank, ierr)
     call MPI_Cart_get(cartcomm, 2, dims, periods, coords, ierr)
-    
     
     allocate(f(N,N))
     allocate(x(N,N))
@@ -46,10 +48,9 @@ program stencil
     allocate(halo_top(4,N))
     allocate(halo_temp_lr(4,N))
     allocate(halo_temp_bt(4,N))
-    
 
     ! Initialize array
-    dx = 1./(N_global-1)
+    dx = 1.00d+00/(N_global-1)
     do j=1,N
         do i=1,N
             x(i,j) = (coords(2)*N+i-1)*dx
