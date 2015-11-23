@@ -49,7 +49,7 @@ program stencil
     allocate(halo_temp_lr(4,N))
     allocate(halo_temp_bt(4,N))
 
-    ! Initialize array
+    ! Initialize function values
     dx = 1.00d+00/(N_global-1)
     do j=1,N
         do i=1,N
@@ -59,6 +59,7 @@ program stencil
         end do
     end do
     
+    ! Evaluate derivative (and time the evaluation)
     call MPI_Barrier(cartcomm, ierr)
     t1 = MPI_Wtime()
     
@@ -71,7 +72,7 @@ program stencil
     call MPI_Barrier(cartcomm, ierr)
     t2 = MPI_Wtime()
 
-    ! compute error
+    ! Compute error
     error = 0.0d+00
     do j=1,N
         do i=1,N
@@ -81,7 +82,9 @@ program stencil
 
     call MPI_Reduce(error, global_error, 1, MPI_DOUBLE_PRECISION, &
         MPI_SUM, 0, cartcomm)
-
+    
+     
+    ! Write report
     if (rank.eq.0) then
         print '(A33, I11)', "Problem size per direction: ", N_global
         !print '(A33, E11.4)', "Global error: ", (global_error/(N_global*N_global))
@@ -95,6 +98,7 @@ program stencil
         end if
         !$omp end parallel
         print '(A33, F9.4, A2)', "Time for dfdx: ", (t2-t1)/50.0d+00, "s"
+        write (*,*), global_error/(N_global*N_global)
     end if
 
     deallocate(halo_left)

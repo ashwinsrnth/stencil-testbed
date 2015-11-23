@@ -7,7 +7,17 @@ subroutine calcdfdx(cartcomm, nx, ny, f, dx, dfdx, &
     use mpi
     use halo
     implicit none
-    
+
+        ! Compute derivative of function f (2-D array)
+        ! using 8-th ordered central finite difference
+        !
+        ! cartcomm: Cartesian communicator
+        ! nx, ny: Size of array
+        ! f: Array of function values
+        ! dx: Spacing between grid points
+        ! dfdx: Space for output
+        ! halo*: Space for halos
+
     integer, intent(in) :: cartcomm
     integer(kind=8), intent(in) :: nx, ny
     real(kind=8), intent(in) :: f(nx,ny), dx
@@ -21,6 +31,8 @@ subroutine calcdfdx(cartcomm, nx, ny, f, dx, dfdx, &
     integer :: i,j
 
     call MPI_Cart_shift(cartcomm, 1, 1, left_rank, right_rank, ierr)
+    
+    ! dfdx at inner points (this is the tight loop):
 
     !$omp parallel shared(dfdx,f,dx) private(i,j)
     !$omp do
