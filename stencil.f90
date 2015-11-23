@@ -53,8 +53,8 @@ program stencil
     dx = 1.00d+00/(N_global-1)
     do j=1,N
         do i=1,N
-            x(i,j) = (coords(2)*N+i-1)*dx
-            y(i,j) = (coords(1)*N+j-1)*dx
+            x(i,j) = (coords(2)*N+i-1.00d+00)*dx
+            y(i,j) = (coords(1)*N+j-1.00d+00)*dx
             f(i,j) = dsin(x(i,j))
         end do
     end do
@@ -62,7 +62,7 @@ program stencil
     call MPI_Barrier(cartcomm, ierr)
     t1 = MPI_Wtime()
     
-    do step=1,10
+    do step=1,50
         call calcdfdx(cartcomm, N, N, f, dx, dfdx, &
         halo_left, halo_right, halo_bottom, halo_top, &
         halo_temp_lr, halo_temp_bt)
@@ -72,7 +72,7 @@ program stencil
     t2 = MPI_Wtime()
 
     ! compute error
-    error = 0.0
+    error = 0.0d+00
     do j=1,N
         do i=1,N
             error = error + dabs(dfdx(i,j) - dcos(x(i,j)))
@@ -84,12 +84,9 @@ program stencil
 
     if (rank.eq.0) then
         print '(A33, I11)', "Problem size per direction: ", N_global
-        print '(A33, F9.4, A2)', "Time for dfdx: ", (t2-t1)/10.0d+00, "s"
-        print '(A33, E11.4)', "Global error: ", (global_error/(N_global*N_global))
+        !print '(A33, E11.4)', "Global error: ", (global_error/(N_global*N_global))
         print '(A33, I11)', "Number of MPI processes: ", nprocs
-    end if
 
-    if (rank.eq.0) then    
         !$omp parallel private(threadID)
         threadID = omp_get_thread_num()
         nthreads = omp_get_num_threads()
@@ -97,6 +94,7 @@ program stencil
             print '(A33, I11)', "OMP threads per process: ", nthreads
         end if
         !$omp end parallel
+        print '(A33, F9.4, A2)', "Time for dfdx: ", (t2-t1)/50.0d+00, "s"
     end if
 
     deallocate(halo_left)
