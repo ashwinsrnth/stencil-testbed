@@ -1,9 +1,10 @@
 This project demonstrates
-a pure MPI v/s OpenMP+MPI approach for
-stencil codes.
+pure MPI v/s OpenMP+MPI
+approaches for stencil codes.
 
 
 Instructions for running on Palmetto:
 
-Use OpenMPI 1.6.4
-Use gcc 4.4
+module add gcc/4.4 openmpi/1.6.4
+./bench-MPI.sh
+./bench-OMP-MPI.sh

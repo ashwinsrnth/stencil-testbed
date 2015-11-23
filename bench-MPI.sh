@@ -7,8 +7,7 @@ echo
 for size in 1024 2048 4096 8192 16384 32768 65536
 do
     mpiexec $MCAFLAGS -n 256 ./a.out $size
-    echo '______________________________'
-    echo
+    echo '________________________________________________'
     echo
 done
 module purge

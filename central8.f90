@@ -9,7 +9,7 @@ subroutine calcdfdx(cartcomm, nx, ny, f, dx, dfdx, &
     implicit none
 
         ! Compute derivative of function f (2-D array)
-        ! using 8-th ordered central finite difference
+        ! using 8th order central finite difference
         !
         ! cartcomm: Cartesian communicator
         ! nx, ny: Size of array

@@ -7,6 +7,16 @@ subroutine calcdfdx(cartcomm, nx, ny, f, dx, dfdx, &
     use mpi
     use halo
     implicit none
+
+        ! Compute derivative of function f (2-D array)
+        ! using 2th order central finite difference
+        !
+        ! cartcomm: Cartesian communicator
+        ! nx, ny: Size of array
+        ! f: Array of function values
+        ! dx: Spacing between grid points
+        ! dfdx: Space for output
+        ! halo*: Space for halos
     
     integer, intent(in) :: cartcomm
     integer(kind=8), intent(in) :: nx, ny
